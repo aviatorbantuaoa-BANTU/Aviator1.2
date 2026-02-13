@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aviator Prognóstico - Sinais em Tempo Real</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="bg-animated"></div>
+    <div class="grid-bg"></div>
+
+    <!-- Login Screen -->
+    <div id="loginContainer" class="login-container">
+        <div class="login-box">
+            <h1 class="login-title">ADMIN LOGIN</h1>
+            <div id="loginAlert"></div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label class="form-label">Número</label>
+                    <input type="text" id="loginNumber" class="form-input" placeholder="Digite o número" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Senha</label>
+                    <input type="password" id="loginPassword" class="form-input" placeholder="Digite a senha" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">ENTRAR</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <img src="assets/logo.svg" alt="Aviator" class="logo-img" onerror="this.style.display='none'">
+                <span>AVIATOR PROGNÓSTICO</span>
+            </div>
+            <div class="user-info">
+                <span id="userStatus" class="status-badge status-free">ACESSO NEGADO</span>
+                <button id="depositBtn" class="btn btn-primary">DEPOSITAR</button>
+                <button id="logoutBtn" class="btn btn-secondary" style="display: none;">SAIR</button>
+                <button id="adminBtn" class="btn btn-secondary" style="display: none;">ADMIN</button>
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalSignals">0</div>
+                <div class="stat-label">Sinais Hoje</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="accuracy">0%</div>
+                <div class="stat-label">Taxa de Acerto</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="activeUsers">0</div>
+                <div class="stat-label">Usuários Ativos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="profit">+0x</div>
+                <div class="stat-label">Lucro Médio</div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-grid">
+            <!-- Game Display -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Aviator ao Vivo</h2>
+                    <span id="nextRound" style="color: var(--text-dim);">Próxima rodada em: <span id="countdown">5s</span></span>
+                </div>
+                <div class="game-display" id="gameDisplay">
+                    <div id="lockedContent" class="locked-overlay">
+                        <div class="lock-icon">
+                            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </div>
+                        <div class="lock-message">
+                            Para acessar os prognósticos em tempo real,<br>
+                            faça um depósito e aguarde a aprovação do admin
+                        </div>
+                        <button class="btn btn-primary" onclick="openPaymentModal()">FAZER DEPÓSITO</button>
+                    </div>
+                    <div class="plane-container">
+                        <img src="assets/plane.svg" alt="Aviator Plane" class="plane-icon" onerror="this.innerHTML='✈️'">
+                    </div>
+                    <div class="multiplier-display" id="multiplier">1.00x</div>
+                    <div class="game-status" id="gameStatus">Aguardando próxima rodada...</div>
+                </div>
+
+                <!-- Signal Panel -->
+                <div class="signal-panel" id="signalPanel" style="display: none;">
+                    <h3 style="color: var(--secondary); margin-bottom: 20px; font-family: 'Orbitron', sans-serif;">PRÓXIMOS SINAIS</h3>
+                    <div id="signalsList"></div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div>
+                <!-- History Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Histórico</h2>
+                    </div>
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Hora</th>
+                                <th>Sinal</th>
+                                <th>Resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody">
+                            <tr>
+                                <td colspan="3" style="text-align: center; color: var(--text-dim); padding: 40px;">
+                                    Faça login para ver o histórico
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Panel -->
+        <div id="adminPanel" class="admin-panel">
+            <div class="card-header">
+                <h2 class="card-title">PAINEL ADMINISTRATIVO</h2>
+            </div>
+            <h3 style="color: var(--secondary); margin: 20px 0; font-family: 'Orbitron', sans-serif;">Pedidos de Depósito Pendentes</h3>
+            <div class="users-grid" id="pendingUsers">
+                <div style="grid-column: 1/-1; text-align: center; color: var(--text-dim); padding: 40px;">
+                    Nenhum pedido pendente
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <button class="close-modal" onclick="closePaymentModal()">&times;</button>
+            <div class="modal-header">
+                <h2 class="modal-title">DADOS DE PAGAMENTO</h2>
+                <p style="color: var(--text-dim); margin-top: 10px;">
+                    Faça o pagamento com os dados abaixo e aguarde a aprovação
+                </p>
+            </div>
+            <div class="payment-info">
+                <div class="payment-field">
+                    <span class="payment-label">Entidade</span>
+                    <span class="payment-value">00243</span>
+                </div>
+                <div class="payment-field">
+                    <span class="payment-label">Referência</span>
+                    <span class="payment-value">938383329</span>
+                </div>
+                <div class="payment-field">
+                    <span class="payment-label">Valor Mínimo</span>
+                    <span class="payment-value" style="color: var(--success);">1.000 Kz</span>
+                </div>
+                <div class="payment-field">
+                    <span class="payment-label">Duração</span>
+                    <span class="payment-value">2 horas</span>
+                </div>
+            </div>
+            <div class="alert alert-info">
+                Após o pagamento de 1.000 Kz, você terá acesso aos sinais por 2 horas. Aguarde a confirmação do administrador.
+            </div>
+            <button class="btn btn-primary" style="width: 100%;" onclick="confirmPayment()">
+                PAGAMENTO REALIZADO
+            </button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="database.js"></script>
+</body>
+</html>
