@@ -1,0 +1,255 @@
+// Database Module - GitHub Integration
+// This module syncs data with GitHub repository
+
+const DATABASE_CONFIG = {
+    owner: 'aviatorbantuaoa-bantu',
+    repo: 'aviatorbantuaoa-bantu.github.io',
+    branch: 'main',
+    dataFile: 'data/users.json',
+    statsFile: 'data/stats.json',
+    historyFile: 'data/history.json'
+};
+
+// GitHub API Base URL
+const GITHUB_API = 'https://api.github.com';
+
+// Database State
+let dbCache = {
+    users: [],
+    stats: {},
+    history: [],
+    lastSync: null
+};
+
+// Initialize Database
+async function initDatabase() {
+    try {
+        await loadFromGitHub();
+        console.log('Database initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize database:', error);
+        // Use local cache if GitHub fails
+        loadFromLocalStorage();
+    }
+}
+
+// Load from GitHub
+async function loadFromGitHub() {
+    try {
+        const [users, stats, history] = await Promise.all([
+            fetchGitHubFile(DATABASE_CONFIG.dataFile),
+            fetchGitHubFile(DATABASE_CONFIG.statsFile),
+            fetchGitHubFile(DATABASE_CONFIG.historyFile)
+        ]);
+
+        dbCache.users = users || [];
+        dbCache.stats = stats || {};
+        dbCache.history = history || [];
+        dbCache.lastSync = Date.now();
+
+        // Save to localStorage as backup
+        saveToLocalStorage();
+    } catch (error) {
+        console.error('Error loading from GitHub:', error);
+        throw error;
+    }
+}
+
+// Fetch file from GitHub
+async function fetchGitHubFile(path) {
+    const url = `${GITHUB_API}/repos/${DATABASE_CONFIG.owner}/${DATABASE_CONFIG.repo}/contents/${path}`;
+    
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            if (response.status === 404) {
+                return null; // File doesn't exist yet
+            }
+            throw new Error(`GitHub API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = atob(data.content); // Decode base64
+        return JSON.parse(content);
+    } catch (error) {
+        console.error(`Error fetching ${path}:`, error);
+        return null;
+    }
+}
+
+// Save to GitHub (requires authentication - for admin only)
+async function saveToGitHub(token) {
+    // Note: This requires a GitHub Personal Access Token
+    // For security, this should be done server-side
+    console.warn('GitHub write operations should be done server-side for security');
+    
+    try {
+        await Promise.all([
+            updateGitHubFile(DATABASE_CONFIG.dataFile, dbCache.users, token),
+            updateGitHubFile(DATABASE_CONFIG.statsFile, dbCache.stats, token),
+            updateGitHubFile(DATABASE_CONFIG.historyFile, dbCache.history, token)
+        ]);
+
+        dbCache.lastSync = Date.now();
+        return true;
+    } catch (error) {
+        console.error('Error saving to GitHub:', error);
+        return false;
+    }
+}
+
+// Update file on GitHub
+async function updateGitHubFile(path, content, token) {
+    const url = `${GITHUB_API}/repos/${DATABASE_CONFIG.owner}/${DATABASE_CONFIG.repo}/contents/${path}`;
+    
+    // First, get the current file SHA
+    let sha = null;
+    try {
+        const response = await fetch(url);
+        if (response.ok) {
+            const data = await response.json();
+            sha = data.sha;
+        }
+    } catch (error) {
+        console.log('File does not exist, will create new');
+    }
+
+    // Prepare the update
+    const body = {
+        message: `Update ${path} - ${new Date().toISOString()}`,
+        content: btoa(JSON.stringify(content, null, 2)), // Encode to base64
+        branch: DATABASE_CONFIG.branch
+    };
+
+    if (sha) {
+        body.sha = sha; // Required for updates
+    }
+
+    const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+            'Authorization': `token ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to update ${path}: ${response.status}`);
+    }
+
+    return await response.json();
+}
+
+// Local Storage Operations
+function saveToLocalStorage() {
+    localStorage.setItem('aviator_db_cache', JSON.stringify(dbCache));
+}
+
+function loadFromLocalStorage() {
+    const cached = localStorage.getItem('aviator_db_cache');
+    if (cached) {
+        dbCache = JSON.parse(cached);
+        console.log('Loaded from local storage cache');
+    }
+}
+
+// Sync to Database (called from app.js)
+function syncToDatabase(appState) {
+    // Update cache
+    dbCache.stats = appState.stats;
+    dbCache.history = appState.history;
+    
+    // Add pending users if any
+    if (appState.pendingUsers && appState.pendingUsers.length > 0) {
+        appState.pendingUsers.forEach(user => {
+            if (!dbCache.users.find(u => u.id === user.id)) {
+                dbCache.users.push(user);
+            }
+        });
+    }
+
+    // Save to local storage
+    saveToLocalStorage();
+
+    // In a real implementation, this would trigger a server-side sync to GitHub
+    console.log('Data synced to local cache');
+}
+
+// Get Users
+function getUsers() {
+    return dbCache.users;
+}
+
+// Add User
+function addUser(user) {
+    dbCache.users.push(user);
+    saveToLocalStorage();
+}
+
+// Update User
+function updateUser(userId, updates) {
+    const userIndex = dbCache.users.findIndex(u => u.id === userId);
+    if (userIndex !== -1) {
+        dbCache.users[userIndex] = { ...dbCache.users[userIndex], ...updates };
+        saveToLocalStorage();
+    }
+}
+
+// Remove User
+function removeUser(userId) {
+    dbCache.users = dbCache.users.filter(u => u.id !== userId);
+    saveToLocalStorage();
+}
+
+// Get Stats
+function getStats() {
+    return dbCache.stats;
+}
+
+// Update Stats
+function updateStats(stats) {
+    dbCache.stats = { ...dbCache.stats, ...stats };
+    saveToLocalStorage();
+}
+
+// Get History
+function getHistory() {
+    return dbCache.history;
+}
+
+// Add History Entry
+function addHistoryEntry(entry) {
+    dbCache.history.unshift(entry);
+    if (dbCache.history.length > 100) {
+        dbCache.history = dbCache.history.slice(0, 100);
+    }
+    saveToLocalStorage();
+}
+
+// Export functions
+window.database = {
+    init: initDatabase,
+    sync: syncToDatabase,
+    users: {
+        get: getUsers,
+        add: addUser,
+        update: updateUser,
+        remove: removeUser
+    },
+    stats: {
+        get: getStats,
+        update: updateStats
+    },
+    history: {
+        get: getHistory,
+        add: addHistoryEntry
+    }
+};
+
+// Auto-initialize on load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDatabase);
+} else {
+    initDatabase();
+}
